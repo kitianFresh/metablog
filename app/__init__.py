@@ -3,6 +3,7 @@
 from flask import Flask
 
 app = Flask(__name__) # this app is a variable
+app.config.from_object('config')
 
 '''
 这里的 import 语句放在后面是为了避免循环引用的问题，因为 views 模块需要引用 app variable
