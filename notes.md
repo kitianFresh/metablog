@@ -16,5 +16,14 @@
 
 ## orm & database migration
 one-to-many lazy
+many-to-many( self-many-to-many)
+```
+User.query.filter_by(nickname=nickname).first()
+self.followed.filter(followers.c.followed_id == user.id).count()
+u1.followed_posts().all()
+```
+只有在执行count() first() all()等方法时，查询才会真正执行
+>> It is always a good idea to return query objects instead of results, because that gives the caller the choice of adding more clauses to the query before it is executed.
 
 ## user authentication
+
