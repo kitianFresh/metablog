@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from app import db
-
+from hashlib import md5
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -26,6 +26,11 @@ class User(db.Model):
             return unicode(self.id)  # python 2
         except NameError:
             return str(self.id)  # python 3
+    '''
+    采用对象方法返回avator的好处就是，如果我们想使用自己的服务器提供图片存储服务的话，改写avatar方法即可，其他前端不用改变
+    '''
+    def avatar(self, size):
+        return 'http://www.gravatar.com/avatar/%s?d=mm&s=%d' % (md5(self.email.encode('utf-8')).hexdigest(), size)
 
     def __repr__(self):
         return '<User %r>' % (self.nickname)
