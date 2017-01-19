@@ -166,7 +166,28 @@ name 字段上附属的 Required() 验证函数。如果名字不为空，就能
 ```
 
 ## flask-sqlalchemy orm & database migration
-模型以及模型之间的关系，重点是关系的定义方式
+模型以及模型之间的关系，重点是关系的定义方式；以下是user 和 role的一对多模型
+user : role = 1 : n; 在 1 : n 模型中， 一般表的表现形式是 1 中 使用一个 n 方的主键作为外键；
+```python
+class Role(db.Model):
+    __tablename__ = 'roles'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64), unique=True)
+    users = db.relationship('User', backref='role', lazy='dynamic')
+
+    def __repr__(self):
+        return '<Role %r>' % self.name
+
+
+class User(UserMixin, db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(64), unique=True, index=True)
+    username = db.Column(db.String(64), unique=True, index=True)
+    role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
+    password_hash = db.Column(db.String(128))
+    confirmed = db.Column(db.Boolean, default=False)
+```
 
 one-to-many lazy
 many-to-many( self-many-to-many)
@@ -379,8 +400,101 @@ from . import login_manager
 def load_user(user_id):
     return User.query.get(int(user_id))
 ```
-### user register conform
+### user register
+用户注册表单
 
+```python
+from flask.ext.wtf import Form
+from wtforms import StringField, PasswordField, BooleanField, SubmitField
+from wtforms.validators import Required, Length, Email, Regexp, EqualTo
+from wtforms import ValidationError
+from ..models import User
+class RegistrationForm(Form):
+    email = StringField('Email', validators=[Required(), Length(1, 64),Email()])
+    username = StringField('Username', validators=[Required(), Length(1, 64), Regexp('^[A-Za-z][A-Za-z0-9_.]*$', 0,
+    'Usernames must have only letters, '
+    'numbers, dots or underscores')])
+    password = PasswordField('Password', validators=[Required(), EqualTo('password2', message='Passwords must match.')])
+    password2 = PasswordField('Confirm password', validators=[Required()])
+    submit = SubmitField('Register')
+    
+    def validate_email(self, field):
+        if User.query.filter_by(email=field.data).first():
+            raise ValidationError('Email already registered.')
+    def validate_username(self, field):
+        if User.query.filter_by(username=field.data).first():
+            raise ValidationError('Username already in use.')
+```
+注册
+
+```python
+form = RegistrationForm()
+if form.validate_on_submit():
+    user = User(email=form.email.data,
+    username=form.username.data,
+    password=form.password.data)
+    db.session.add(user)
+    flash('You can now login.')
+    return redirect(url_for('auth.login'))
+return render_template('auth/register.html', form=form)
+
+```
+### User confirmation 
+用户在使用邮箱注册时，为了防止机器批量注册，必须使验证邮箱的有效性和并对用户进行验证，验证之后的用户才算是真实的用户；
+现在大部分的用户验证都是在注册之后，根据用户的电子邮箱给用户发送一封电子邮件；邮件里包含的是用户在数据库中的id，但是id一般是被加密过得，以防止恶意使用他人id进行验证；
+使用itsdangerous生成确认令牌；itsdangerous 提供了多种生成令牌的方法。其中， TimedJSONWebSignatureSerializer 类生成
+具有过期时间的 JSON Web 签名（ JSON Web Signatures， JWS）。这个类的构造函数接收
+的参数是一个密钥，在 Flask 程序中可使用 SECRET_KEY 设置
+
+```python
+from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
+from flask import current_app
+from . import db
+class User(UserMixin, db.Model):
+    # ...
+    confirmed = db.Column(db.Boolean, default=False)
+    def generate_confirmation_token(self, expiration=3600):
+        s = Serializer(current_app.config['SECRET_KEY'], expiration)
+        return s.dumps({'confirm': self.id})
+    def confirm(self, token):
+        s = Serializer(current_app.config['SECRET_KEY'])
+        try:
+            data = s.loads(token)
+        except:
+            return False
+        if data.get('confirm') != self.id:
+            return False
+        self.confirmed = True
+        db.session.add(self)
+        return True
+```
+产生确认链接
+
+```python
+db.session.add(user)
+db.session.commit()
+token = user.generate_confirmation_token()
+send_email(user.email, 'Confirm Your Account',
+'auth/email/confirm', user=user, token=token)
+flash('A confirmation email has been sent to you by email.')
+return redirect(url_for('main.index'))
+```
+
+确认视图
+
+```python
+from flask.ext.login import current_user
+@auth.route('/confirm/<token>')
+@login_required
+def confirm(token):
+    if current_user.confirmed:
+        return redirect(url_for('main.index'))
+    if current_user.confirm(token):
+        flash('You have confirmed your account. Thanks!')
+    else:
+        flash('The confirmation link is invalid or has expired.')
+    return redirect(url_for('main.index'))
+```
 [Setup User Authentication in Flask](http://blog.sampingchuang.com/setup-user-authentication-in-flask/)
 
 ## 防止用户提交后接着又刷新浏览器
@@ -460,6 +574,7 @@ config = {
     return [b'<h1>Hello, web!</h1>']
  ```
  那么他的调用者，也必须按照这个方式调用application，即要给他传递environment和response函数然他使用；这个就是底层的web server 需要做的，我们只负责 web app的业务逻辑的开发；
+ 
  python 内置的支持WSGI的服务器
 
 ```python
@@ -481,3 +596,20 @@ from werkzeug.serving import run_simple
 
 run_simple('127.0.0.1', 5000, application, use_debugger=True, use_reloader=True)
 ```
+
+## Python module & packages
+一个 py 文件就是一个 module， 如果想要结构化的组织py文件，行程命名空间，那么这些 结构化的 py文件就组成了一个 package，package 可以包含package
+每一个module都可以包含 可执行语句(executable statements)以及函数定义(function definitions)， 这些语句用来初始化模块，他们当且仅当模块初次导入时执行；模块内定义的全局变量对模块内是全局的，但是对其他模块是不可见的，除非导入，而且使用者可以使用和模块内同名的变量module1.name，因为使用者在另一个模块module2.name。
+import模块之后，即使模块发生变化，也不能再加载了；reload() 可以动态的重新加载模块；
+
+python fib.py 和 在 Python 解释器里 import fib 有什么不同？
+
+每一个module 都有一个 \_\_name\_\_变量，并且\_\_name\_\_=modulename；import 并不会改变该模块的变量名字，因此你在一个模块中写这个我们所谓的执行入口，
+如果是交互式，\_\_name\_\_=modulename，实际上是Python解释器读到这里，发现\_\_name\_\_并不等于\_\_main\_\_，就不会执行了；
+但是如果直接执行fib.py, Python解释器会把\_\_name\_\_设置成\_\_main\_\_，所以就执行了module里的执行语句
+```python
+if __name__ == '__main__':
+    import sys
+    fib(int(sys.argv[1]))
+```
+对于package， 需要含有一个 \_\_init\_\_.py 文件，用于 导入时初始化执行；
