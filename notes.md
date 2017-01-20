@@ -166,8 +166,28 @@ name 字段上附属的 Required() 验证函数。如果名字不为空，就能
 ```
 
 ## flask-sqlalchemy orm & database migration
-模型以及模型之间的关系，重点是关系的定义方式；以下是user 和 role的一对多模型
-user : role = 1 : n; 在 1 : n 模型中， 一般表的表现形式是 1 中 使用一个 n 方的主键作为外键；
+关系数据库理论中， 无非就是 1 : 1, 1 : n 和 m : n; 
+
+ - 对于一对多的关系，一方实体和多方实体都会对应一个数据库表，而这种关系的维护并不需要显式的声明，只是我们在多方使用一方的主键作为外键就表明了这种关系了；多对一同理；
+ - 对于多对多的关系，两个多方实体都对应一个表，但是如何表示两个实体的多对多关系呢？此时就需要第三个表，他通过使用两个实体的主键作为外键，从而维护起多对多的关系，但是中间表一般不算作实体，如果没有额外信息的话；当然中间表也可以成为一个实体，比如学生-选课中间表，如果需要知道学生选课的时间，地点等事件发生的额外信息的话，我们可以让中间表成为实体，给他一个主键ID，当然还需要含有两个外键以及其他额外信息；
+
+实体往往对应OOP中的模型；user : role = 1 : n; 在 1 : n 模型中; 使用 1 方的主键作为多方的外键即可；
+
+flask-sqlalchemy中定义一对多关系模型，和数据库类似，属于多方的User模型中，定义一个参照Role的外键即可表明这种关系；
+添加到 Role 模型中的 users 属性代表这个关系的面向对象视角。对于一个 Role 类的实例，
+其 users 属性将返回与角色相关联的用户组成的列表。
+
+db.relationship() 的第一个参数表明这个关系的另一端是哪个模型。如果模型类尚未定义，可使用字符串形式指定。
+db.relationship() 中的 backref 参数向 User 模型中添加一个 role 属性，从而定义反向关
+系。这一属性可替代 role_id 访问 Role 模型，此时获取的是模型对象，而不是外键的值。
+
+大多数情况下， db.relationship() 都能自行找到关系中的外键，但有时却无法决定把
+哪一列作为外键。 例如，如果 User 模型中有两个或以上的列定义为 Role 模型的外键，
+SQLAlchemy 就不知道该使用哪列。 如果无法决定外键，你就要为 db.relationship() 提供
+额外参数，从而确定所用外键。
+```
+users = db.relationship('User', backref='role', lazy='dynamic')
+```
 ```python
 class Role(db.Model):
     __tablename__ = 'roles'
@@ -187,6 +207,41 @@ class User(UserMixin, db.Model):
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'))
     password_hash = db.Column(db.String(128))
     confirmed = db.Column(db.Boolean, default=False)
+```
+多对多关系仍使用定义一对多关系的 db.relationship() 方法进行定义，但在多对多关系中，
+必须把 secondary 参数设为关联表。多对多关系可以在任何一个类中定义， backref 参数会处
+理好关系的另一侧。关联表就是一个简单的表，不是模型， SQLAlchemy 会自动接管这个表
+
+```python
+registrations = db.Table('registrations',
+    db.Column('student_id', db.Integer, db.ForeignKey('students.id')),
+    db.Column('class_id', db.Integer, db.ForeignKey('classes.id'))
+)
+class Student(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String)
+    classes = db.relationship('Class',
+    secondary=registrations,
+    backref=db.backref('students', lazy='dynamic'),
+    lazy='dynamic')
+class Class(db.Model):
+    id = db.Column(db.Integer, primary_key = True)
+    name = db.Column(db.String)
+
+>>> s.classes.append(c)
+>>> db.session.add(s)
+列出学生 s 注册的课程以及注册了课程 c 的学生也很简单：
+>>> s.classes.all()
+>>> c.students.all()
+Class 模型中的 students 关系由参数 db.backref() 定义。注意，这个关系中还指定了 lazy
+= 'dynamic' 参数，所以关系两侧返回的查询都可接受额外的过滤器。
+如果后来学生 s 决定不选课程 c 了，那么可使用下面的代码更新数据库：
+>>> s.classes.remove(c)
+```
+自引用多对多关系
+
+```python
+
 ```
 
 one-to-many lazy
@@ -364,12 +419,14 @@ class User(db.Model):
 
 ### user login (flask-login)
 使用flask-login 需要 User model实现以下四个函数：
-|变量名       |说明 |
+
+|变量名       |说明             |
 |------------|:---------------|
 |is_authenticated |如果用户已经登录，必须返回 True，否则返回 False|
 |is_active        |如果允许用户登录，必须返回 True，否则返回 False。如果要禁用账户，可以返回 False|
 |is_anonymous     |对普通用户必须返回 False|
 |get_id()         |必须返回用户的唯一标识符，使用 Unicode 编码字符串|
+
 但是更简单的方式是继承UserMixin，该对象是flask-login 已经实现了最简单的以上四个方法，可以查看UserMixin源代码
 ```python
 from flask.ext.login import UserMixin
@@ -550,6 +607,11 @@ config = {
 配置类可以定义 init\_app() 类方法，其参数是程序实例。在这个方法中，可以执行对当前环境的配置初始化。现在，基类 Config 中的 init\_app() 方法为空。
 在这个配置脚本末尾， config 字典中注册了不同的配置环境，而且还注册了一个默认配置;
 
+
+注意，新文章对象的 author 属性值为表达式 current\_user.\_get\current\_object()。变量
+current_user 由 Flask-Login 提供，和所有上下文变量一样，也是通过线程内的代理对象实
+现。这个对象的表现类似用户对象， 但实际上却是一个轻度包装，包含真正的用户对象。
+数据库需要真正的用户对象，因此要调用 \_get\_current\_object() 方法
 
 # Flask源码疑惑
  - [Flask 中的上下文对象](https://segmentfault.com/a/1190000004859568)
