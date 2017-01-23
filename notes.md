@@ -326,6 +326,10 @@ u1.followed_posts().all()
 只有在执行count() first() all()等方法时，查询才会真正执行
 >> It is always a good idea to return query objects instead of results, because that gives the caller the choice of adding more clauses to the query before it is executed.
 
+### SQLAlchemy
+ - [SQLAlchemy Core](http://docs.sqlalchemy.org/en/latest/core/tutorial.html)
+ - [SQLAlchemy ORM](http://docs.sqlalchemy.org/en/latest/orm/tutorial.html)
+
 ### database migration
 在开发程序的过程中，你会发现有时需要修改数据库模型，而且修改之后还需要更新数据库。仅当数据库表不存在时， Flask-SQLAlchemy 才会根据模型进行创建。因此，更新表的唯一方式就是先删除旧表，不过这样做会丢失数据库中的所有数据
 更新表的更好方法是使用数据库迁移框架。源码版本控制工具可以跟踪源码文件的变化，类似地，数据库迁移框架能跟踪数据库模式的变化，然后增量式的把变化应用到数据库中
@@ -614,6 +618,7 @@ current_user 由 Flask-Login 提供，和所有上下文变量一样，也是通
 数据库需要真正的用户对象，因此要调用 \_get\_current\_object() 方法
 
 # Flask源码疑惑
+    flask-login-->Flask-->werkzeug, blueprint:Flask
  - [Flask 中的上下文对象](https://segmentfault.com/a/1190000004859568)
  - [Flask 源码剖析——服务启动篇](https://segmentfault.com/a/1190000005788124)
  - [ Flask request，g，session的实现原理](http://blog.csdn.net/yueguanghaidao/article/details/39533841)
@@ -627,6 +632,11 @@ current_user 由 Flask-Login 提供，和所有上下文变量一样，也是通
 
  blueprint, flask-login,flask-script,flask-sqlalchemy, flask-migrate
 
+
+ Python 基础：
+ - 模块运行机制，Python脚本解释器接口
+ - 函数式编程
+ - 变量作用域，python并发模型，线程or 协程
 
 所谓WSGI接口，或者说协议，就是双方都得遵守的编程接口，说的更直接就是，一个回调函数，这个函数的书写者遵循WSGI规范，
 例如含有environment和start_response 两个参数的application函数，
