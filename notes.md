@@ -625,6 +625,8 @@ current_user 由 Flask-Login 提供，和所有上下文变量一样，也是通
  - [Werkzeug 教程](http://werkzeug-docs-cn.readthedocs.io/zh_CN/latest/tutorial.html)
  - [how-to-set-up-a-firewall-with-ufw-on-ubuntu-16-04](https://www.digitalocean.com/community/tutorials/how-to-set-up-a-firewall-with-ufw-on-ubuntu-16-04)
 
+ blueprint, flask-login,flask-script,flask-sqlalchemy, flask-migrate
+
 
 所谓WSGI接口，或者说协议，就是双方都得遵守的编程接口，说的更直接就是，一个回调函数，这个函数的书写者遵循WSGI规范，
 例如含有environment和start_response 两个参数的application函数，
